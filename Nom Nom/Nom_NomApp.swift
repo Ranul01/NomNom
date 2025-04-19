@@ -8,10 +8,14 @@
 import SwiftUI
 
 @main
-struct Nom_NomApp: App {
+struct NomNomApp: App {
+    // Create a shared instance of ReceiptStore that will be used across the app
+    @StateObject private var receiptStore = ReceiptStore()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(receiptStore)
         }
     }
 }
