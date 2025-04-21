@@ -5,6 +5,7 @@
 //  Created by Ranul Thilakarathna on 2025-04-18.
 //
 
+
 import SwiftUI
 
 // Extension to convert string to Color
@@ -27,6 +28,8 @@ struct ContentView: View {
     // Use EnvironmentObject instead of StateObject
     @EnvironmentObject var receiptStore: ReceiptStore
     @State private var showingAddSheet = false
+    @State private var showingUpdateSheet = false
+    @State private var selectedCategoryIndex: Int? = nil
     
     var body: some View {
         NavigationView {
@@ -69,6 +72,10 @@ struct ContentView: View {
                         VStack(spacing: 15) {
                             ForEach(0..<receiptStore.categories.count, id: \.self) { index in
                                 CategoryCardView(category: $receiptStore.categories[index], categoryIndex: index, store: receiptStore)
+                                    .onTapGesture {
+                                        selectedCategoryIndex = index
+                                        showingUpdateSheet = true
+                                    }
                             }
                         }
                         .padding(.horizontal)
@@ -100,7 +107,18 @@ struct ContentView: View {
                 receiptStore.load()
             }
             .sheet(isPresented: $showingAddSheet) {
-                AddReceiptView(receiptStore: receiptStore)
+                AddReceiptView(receiptStore: receiptStore, isUpdating: false)
+            }
+            .sheet(isPresented: $showingUpdateSheet) {
+                if let index = selectedCategoryIndex {
+                    AddReceiptView(
+                        receiptStore: receiptStore,
+                        isUpdating: true,
+                        categoryIndex: index,
+                        categoryName: receiptStore.categories[index].name,
+                        selectedColor: receiptStore.categories[index].color
+                    )
+                }
             }
         }
     }

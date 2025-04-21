@@ -19,8 +19,37 @@ struct AddReceiptView: View {
     @State private var items: [ReceiptItem] = []
     @State private var showingCategoryInput = false
     @State private var selectedCategoryIndex = 0
+    @State private var editingItemIndex: Int? = nil
+    @State private var isEditingItem = false
     
+    // Update properties
+    var isUpdating: Bool = false
+    var categoryIndex: Int? = nil
+    
+    // Colors available for selection
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink"]
+    
+    // Initialize for creating a new receipt
+    init(receiptStore: ReceiptStore, isUpdating: Bool = false) {
+        self.receiptStore = receiptStore
+        self.isUpdating = isUpdating
+    }
+    
+    // Initialize for updating an existing receipt
+    init(receiptStore: ReceiptStore, isUpdating: Bool, categoryIndex: Int, categoryName: String, selectedColor: String) {
+        self.receiptStore = receiptStore
+        self.isUpdating = isUpdating
+        self._categoryName = State(initialValue: categoryName)
+        self._selectedColor = State(initialValue: selectedColor)
+        self.categoryIndex = categoryIndex
+        self._selectedCategoryIndex = State(initialValue: categoryIndex)
+        self._showingCategoryInput = State(initialValue: true)
+        
+        // Load existing items if updating
+        if isUpdating && categoryIndex < receiptStore.categories.count {
+            self._items = State(initialValue: receiptStore.categories[categoryIndex].items)
+        }
+    }
     
     var body: some View {
         VStack {
@@ -54,16 +83,16 @@ struct AddReceiptView: View {
                 .padding()
             }
             
-            // Add Receipt Form
+            // Add/Update Receipt Form
             VStack {
-                Text("Add Receipt")
+                Text(isUpdating ? "Update Receipt" : "Add Receipt")
                     .font(.title2)
                     .fontWeight(.bold)
                     .padding(.top)
                 
                 // Type/Category Selection
                 if showingCategoryInput {
-                    // New category creation
+                    // New category creation or update existing
                     TextField("Type", text: $categoryName)
                         .padding()
                         .background(colorScheme == .dark ? Color(UIColor.darkGray) : Color(UIColor.systemBackground))
@@ -94,8 +123,8 @@ struct AddReceiptView: View {
                         }
                         .padding(.horizontal)
                     }
-                } else {
-                    // Existing category selection
+                } else if !isUpdating {
+                    // Existing category selection (only for new receipts)
                     if receiptStore.categories.isEmpty {
                         Button(action: {
                             showingCategoryInput = true
@@ -138,6 +167,37 @@ struct AddReceiptView: View {
                     }
                 }
                 
+                // Display existing items when updating
+                if isUpdating && !items.isEmpty {
+                    List {
+                        ForEach(items.indices, id: \.self) { index in
+                            HStack {
+                                Text(items[index].name)
+                                Spacer()
+                                Text("Rs \(Int(items[index].amount))")
+                                
+                                // Edit button for each item
+                                Button(action: {
+                                    editingItemIndex = index
+                                    itemName = items[index].name
+                                    amountText = String(Int(items[index].amount))
+                                    isEditingItem = true
+                                }) {
+                                    Image(systemName: "pencil")
+                                        .foregroundColor(.blue)
+                                }
+                                .padding(.leading)
+                            }
+                        }
+                        .onDelete { indexSet in
+                            items.remove(atOffsets: indexSet)
+                        }
+                    }
+                    .frame(height: min(CGFloat(items.count * 44), 200))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+                }
+                
                 // Item name
                 HStack {
                     Text("+")
@@ -169,21 +229,44 @@ struct AddReceiptView: View {
                 )
                 .padding(.horizontal)
                 
-                // Add button
+                // Add/Update Item button
                 Button(action: {
-                    addItem()
+                    if isEditingItem {
+                        updateItem()
+                    } else {
+                        addItem()
+                    }
                 }) {
                     HStack {
-                        Text("Add")
-                        Image(systemName: "plus")
+                        Text(isEditingItem ? "Update Item" : "Add")
+                        Image(systemName: isEditingItem ? "arrow.triangle.2.circlepath" : "plus")
                     }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 50)
-                    .background(Color.purple.opacity(0.7))
+                    .background(isEditingItem ? Color.blue.opacity(0.7) : Color.purple.opacity(0.7))
                     .foregroundColor(.white)
                     .cornerRadius(25)
                 }
                 .padding(.vertical)
+                
+                // Cancel edit button (shown only when editing an item)
+                if isEditingItem {
+                    Button(action: {
+                        // Cancel editing and reset fields
+                        isEditingItem = false
+                        editingItemIndex = nil
+                        itemName = ""
+                        amountText = ""
+                    }) {
+                        Text("Cancel Edit")
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 20)
+                            .background(Color.gray.opacity(0.7))
+                            .foregroundColor(.white)
+                            .cornerRadius(15)
+                    }
+                    .padding(.bottom, 8)
+                }
                 
                 // Action buttons
                 HStack(spacing: 20) {
@@ -198,28 +281,28 @@ struct AddReceiptView: View {
                             .cornerRadius(15)
                     }
                     
-                    Button(action: {
-                        saveReceipt()
-                    }) {
-                        Text("Save")
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 20)
-                            .background(Color.red.opacity(0.7))
-                            .foregroundColor(.white)
-                            .cornerRadius(15)
-                    }
-                    
-                    Button(action: {
-                        // Update functionality would typically modify an existing receipt
-                        // We'll just simulate a save for this example
-                        saveReceipt()
-                    }) {
-                        Text("Update")
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 20)
-                            .background(Color.orange.opacity(0.7))
-                            .foregroundColor(.white)
-                            .cornerRadius(15)
+                    if !isUpdating {
+                        Button(action: {
+                            saveReceipt()
+                        }) {
+                            Text("Save")
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 20)
+                                .background(Color.red.opacity(0.7))
+                                .foregroundColor(.white)
+                                .cornerRadius(15)
+                        }
+                    } else {
+                        Button(action: {
+                            updateReceipt()
+                        }) {
+                            Text("Update")
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 20)
+                                .background(Color.orange.opacity(0.7))
+                                .foregroundColor(.white)
+                                .cornerRadius(15)
+                        }
                     }
                 }
                 .padding(.top)
@@ -244,7 +327,26 @@ struct AddReceiptView: View {
         amountText = ""
     }
     
-    // Save receipt to store
+    // Update an existing item
+    private func updateItem() {
+        guard !itemName.isEmpty,
+              let amount = Double(amountText),
+              amount > 0,
+              let index = editingItemIndex,
+              index < items.count else { return }
+        
+        // Update the item at the selected index
+        items[index].name = itemName
+        items[index].amount = amount
+        
+        // Reset editing state
+        isEditingItem = false
+        editingItemIndex = nil
+        itemName = ""
+        amountText = ""
+    }
+    
+    // Save new receipt to store
     private func saveReceipt() {
         if showingCategoryInput && !categoryName.isEmpty {
             // Create new category
@@ -277,6 +379,25 @@ struct AddReceiptView: View {
                                      name: itemName,
                                      amount: amount)
             }
+        }
+        
+        // Dismiss the sheet
+        presentationMode.wrappedValue.dismiss()
+    }
+    
+    // Update existing receipt
+    private func updateReceipt() {
+        guard let index = categoryIndex else { return }
+        
+        // Update category name and color
+        if !categoryName.isEmpty {
+            receiptStore.updateCategory(at: index, name: categoryName, color: selectedColor, items: items)
+        }
+        
+        // Add current item if it's being edited
+        if !itemName.isEmpty, let amount = Double(amountText), amount > 0 {
+            let newItem = ReceiptItem(name: itemName, amount: amount)
+            receiptStore.addItem(to: index, name: newItem.name, amount: newItem.amount)
         }
         
         // Dismiss the sheet
